@@ -1,244 +1,240 @@
 package android.com.cameraframes;
 
-import android.annotation.TargetApi;
-import android.app.Application;
+import android.app.Activity;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.hardware.Camera;
-import android.hardware.Camera.AutoFocusCallback;
-import android.hardware.Camera.Parameters;
-import android.hardware.Camera.PictureCallback;
-import android.hardware.Camera.ShutterCallback;
-import android.os.Build;
-import android.renderscript.Allocation;
-import android.renderscript.Element;
-import android.renderscript.RenderScript;
-import android.renderscript.ScriptIntrinsicYuvToRGB;
-import android.renderscript.Type;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.util.Base64;
+import android.util.Log;
+import android.util.Size;
+import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class CameraPreview extends Application implements SurfaceHolder.Callback, Camera.PreviewCallback
-{
-    private Camera mCamera = null;
-    private int PreviewSizeWidth;
-    private int PreviewSizeHeight;
-    private String NowPictureFileName;
-    private Boolean TakePicture = false;
-    private static Context mContext;
-    private int imageFormat;
+public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback, Camera.PreviewCallback, Runnable {
+  private SurfaceHolder mHolder;
+  private Camera mCamera;
+  private String TAG = "";
+  private boolean processImage = false;
+  private int DEGREE = 90;
+  private MainActivity m;
 
-//    public static Context getContext() {
-//        return mContext;
-//    }
+  public CameraPreview(final Context context, Camera camera) {
+    super(context);
+    m = (MainActivity) context;
+
+    new Thread(this).start();
+
+    mCamera = camera;
+    Camera.Parameters mParam = mCamera.getParameters();
+    mParam.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
+    mCamera.setParameters(mParam);
+
+
+    processImage = false;
+
+    // Install a SurfaceHolder.Callback so we get notified when the
+    // underlying surface is created and destroyed.
+    mHolder = getHolder();
+    mHolder.addCallback(this);
+    // deprecated setting, but required on Android versions prior to 3.0
+    mHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+
+
+  }
+
+  public void setCapture(boolean capture) {
+    processImage = capture;
+  }
+
+  public void surfaceCreated(SurfaceHolder holder) {
+    // The Surface has been created, now tell the camera where to draw the preview.
+    try {
+      mCamera.setPreviewDisplay(holder);
+      mCamera.setPreviewCallback(this);
+//      mCamera.setOneShotPreviewCallback(this);
+      mCamera.setDisplayOrientation(DEGREE);
+      mCamera.startPreview();
+
+    } catch (IOException e) {
+      Log.d(TAG, "Error setting camera preview: " + e.getMessage());
+    }
+  }
+
+  private int i = 1;
+
+  @Override
+  public void onPreviewFrame(byte[] data, Camera camera) {
+//    try {
+//      Camera.Parameters parameters = camera.getParameters();
+//      Camera.Size size = parameters.getPreviewSize();
 //
-//    public static void setContext(Context mContext) {
-//        CameraPreview.mContext = mContext;
-//    }
-
-    public CameraPreview(int PreviewlayoutWidth, int PreviewlayoutHeight, Context context)
-    {
-        PreviewSizeWidth = PreviewlayoutWidth;
-        PreviewSizeHeight = PreviewlayoutHeight;
-        this.mContext = context;
-    }
-
-    @Override
-//    public void onPreviewFrame(byte[] data, Camera camera) {
-//        // TODO Auto-generated method stub
-//        Camera.Parameters parameters = camera.getParameters();
-//        parameters.setPreviewFormat(ImageFormat.NV21);
-//        Camera.Size size = parameters.getPreviewSize();
-//        YuvImage image = new YuvImage(data, ImageFormat.NV21,
-//                size.width, size.height, null);
-//        Rect rectangle = new Rect();
-//        rectangle.bottom = size.height;
-//        rectangle.top = 0;
-//        rectangle.left = 0;
-//        rectangle.right = size.width;
-//        ByteArrayOutputStream out2 = new ByteArrayOutputStream();
-//        image.compressToJpeg(rectangle, 100, out2);
-//        DataInputStream in = new DataInputStream();
-//        in.write(out2.toByteArray());
+//      YuvImage image = new YuvImage(rotateYUV420Degree90(data, size.width, size.height), parameters.getPreviewFormat(),
+//        size.height, size.width, null);
+//      File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+//      String filename = "/test/img" + System.currentTimeMillis() + ".png";
+//      File file = new File(path, filename);
+//      FileOutputStream filecon = new FileOutputStream(file);
 //
+//      int q = image.getHeight() / 4;
+//
+//      image.compressToJpeg(
+//        new Rect(0, 0, image.getWidth(), image.getHeight()), 25,
+//        filecon);
+//    } catch (FileNotFoundException e) {
+//      e.printStackTrace();
 //    }
 
 
-//    public void onPreviewFrame(byte[] data, Camera camera)
-//    {
-//        Parameters parameters = camera.getParameters();
-//        imageFormat = parameters.getPreviewFormat();
-//        if (imageFormat == ImageFormat.NV21)
-//        {
-//            Rect rect = new Rect(0, 0, PreviewSizeWidth, PreviewSizeHeight);
-//            YuvImage img = new YuvImage(data, ImageFormat.NV21, PreviewSizeWidth, PreviewSizeHeight, null);
-//            OutputStream outStream = null;
-//            File file = new File("test");
-//            try
-//            {
-//                outStream = new FileOutputStream(file);
-//                img.compressToJpeg(rect, 100, outStream);
-//                outStream.flush();
-//                outStream.close();
-//            }
-//            catch (FileNotFoundException e)
-//            {
-//                e.printStackTrace();
-//            }
-//            catch (IOException e)
-//            {
-//                e.printStackTrace();
-//            }
-//        }
+    if (processImage) {
+      m.showData(i);
+      i++;
+      Camera.Parameters parameters = camera.getParameters();
+      Camera.Size size = parameters.getPreviewSize();
+      int pFormat = parameters.getPreviewFormat();
+      Message msg = new Message();
+      Bundle args = new Bundle();
+      args.putByteArray("data", data);
+      args.putInt("w", size.width);
+      args.putInt("h", size.height);
+      args.putInt("pF", pFormat);
+      msg.setData(args);
+      mHandler.sendMessage(msg);
+    }
+  }
+
+  class Frame {
+
+    Frame(byte[] data,
+          Camera camera) {
+      this.data = data;
+      this.camera = camera;
+    }
+
+
+    byte[] data;
+    Camera camera;
+  }
+
+  private Handler mHandler;
+
+  @Override
+  public void run() {
+
+    Looper.prepare();
+
+    mHandler = new Handler() {
+      @Override
+      public void handleMessage(Message msg) {
+        try {
+
+          byte[] data = msg.getData().getByteArray("data");
+          int w = msg.getData().getInt("w");
+          int h = msg.getData().getInt("h");
+          int pF = msg.getData().getInt("pF");
+
+          if (null != data) {
+
+            YuvImage image = new YuvImage(data, pF,
+              w, h, null);
+            File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+            String filename = "/test/img" + System.currentTimeMillis() + ".png";
+            File file = new File(path, filename);
+            FileOutputStream filecon = new FileOutputStream(file);
+
+            image.compressToJpeg(
+              new Rect(0, 0, image.getWidth(), image.getHeight()), 25,
+              filecon);
+
+            m.showData(i);
+            i--;
+          }
+        } catch (FileNotFoundException e) {
+          e.printStackTrace();
+        }
+      }
+    };
+
+    Looper.loop();
+  }
+
+//  private byte[] rotateYUV420Degree90(byte[] data, int imageWidth, int imageHeight) {
+//    byte[] yuv = new byte[imageWidth * imageHeight * 3 / 2];
+//    // Rotate the Y luma
+//    int i = 0;
+//    for (int x = 0; x < imageWidth; x++) {
+//      for (int y = imageHeight - 1; y >= 0; y--) {
+//        yuv[i] = data[y * imageWidth + x];
+//        i++;
+//      }
 //    }
+//    // Rotate the U and V color components
+//    i = imageWidth * imageHeight * 3 / 2 - 1;
+//    for (int x = imageWidth - 1; x > 0; x = x - 2) {
+//      for (int y = 0; y < imageHeight / 2; y++) {
+//        yuv[i] = data[(imageWidth * imageHeight) + (y * imageWidth) + x];
+//        i--;
+//        yuv[i] = data[(imageWidth * imageHeight) + (y * imageWidth) + (x - 1)];
+//        i--;
+//      }
+//    }
+//    return yuv;
+//  }
 
-    public void onPreviewFrame(byte[] data, Camera camera) {
-        Bitmap bitmap = Bitmap.createBitmap(PreviewSizeWidth, PreviewSizeHeight, Bitmap.Config.ARGB_8888);
-        Allocation bmData = renderScriptNV21ToRGBA888(
-                mContext,
-                PreviewSizeWidth,
-                PreviewSizeHeight,
-                data);
-        bmData.copyTo(bitmap);
+  public void surfaceDestroyed(SurfaceHolder holder) {
+    // empty. Take care of releasing the Camera preview in your activity.
+    processImage = false;
+  }
+
+  public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+    // If your preview can change or rotate, take care of those events here.
+    // Make sure to stop the preview before resizing or reformatting it.
+
+    if (mHolder.getSurface() == null) {
+      // preview surface does not exist
+      return;
     }
 
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
-    public Allocation renderScriptNV21ToRGBA888(Context context, int width, int height, byte[] nv21) {
-        RenderScript rs = RenderScript.create(context);
-        ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
-
-        Type.Builder yuvType = new Type.Builder(rs, Element.U8(rs)).setX(nv21.length);
-        Allocation in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
-
-        Type.Builder rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(width).setY(height);
-        Allocation out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
-
-        in.copyFrom(nv21);
-
-        yuvToRgbIntrinsic.setInput(in);
-        yuvToRgbIntrinsic.forEach(out);
-        return out;
+    // stop preview before making changes
+    try {
+      mCamera.stopPreview();
+    } catch (Exception e) {
+      // ignore: tried to stop a non-existent preview
     }
 
+    // set preview size and make any resize, rotate or
+    // reformatting changes here
 
-    @Override
-    public void surfaceChanged(SurfaceHolder arg0, int arg1, int arg2, int arg3)
-    {
-        Parameters parameters;
-
-        parameters = mCamera.getParameters();
-        // Set the camera preview size
-        parameters.setPreviewSize(PreviewSizeWidth, PreviewSizeHeight);
-        // Set the take picture size, you can set the large size of the camera supported.
-        parameters.setPictureSize(PreviewSizeWidth, PreviewSizeHeight);
-
-        // Turn on the camera flash.
-        String NowFlashMode = parameters.getFlashMode();
-        if ( NowFlashMode != null )
-            parameters.setFlashMode(Parameters.FLASH_MODE_ON);
-        // Set the auto-focus.
-        String NowFocusMode = parameters.getFocusMode ();
-        if ( NowFocusMode != null )
-            parameters.setFocusMode("auto");
-
-        mCamera.setParameters(parameters);
-
-        mCamera.startPreview();
+    // start preview with new settings
+    try {
+      mCamera.setPreviewDisplay(mHolder);
+      mCamera.setPreviewCallback(this);
+      mCamera.setDisplayOrientation(DEGREE);
+      mCamera.startPreview();
+    } catch (Exception e) {
+      Log.d(TAG, "Error starting camera preview: " + e.getMessage());
     }
-
-    @Override
-    public void surfaceCreated(SurfaceHolder arg0)
-    {
-        mCamera = Camera.open();
-        try
-        {
-            // If did not set the SurfaceHolder, the preview area will be black.
-            mCamera.setPreviewDisplay(arg0);
-            mCamera.setPreviewCallback(this);
-        }
-        catch (IOException e)
-        {
-            mCamera.release();
-            mCamera = null;
-        }
-    }
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder arg0)
-    {
-        mCamera.setPreviewCallback(null);
-        mCamera.stopPreview();
-        mCamera.release();
-        mCamera = null;
-    }
-
-    // Take picture interface
-    public void CameraTakePicture(String FileName)
-    {
-        TakePicture = true;
-        NowPictureFileName = FileName;
-        mCamera.autoFocus(myAutoFocusCallback);
-    }
-
-    // Set auto-focus interface
-    public void CameraStartAutoFocus()
-    {
-        TakePicture = false;
-        mCamera.autoFocus(myAutoFocusCallback);
-    }
-
-
-    //=================================
-    //
-    // AutoFocusCallback
-    //
-    //=================================
-    AutoFocusCallback myAutoFocusCallback = new AutoFocusCallback()
-    {
-        public void onAutoFocus(boolean arg0, Camera NowCamera)
-        {
-            if ( TakePicture )
-            {
-                NowCamera.stopPreview();//fixed for Samsung S2
-                NowCamera.takePicture(shutterCallback, rawPictureCallback, jpegPictureCallback);
-                TakePicture = false;
-            }
-        }
-    };
-    ShutterCallback shutterCallback = new ShutterCallback()
-    {
-        public void onShutter()
-        {
-            // Just do nothing.
-        }
-    };
-
-    PictureCallback rawPictureCallback = new PictureCallback()
-    {
-        public void onPictureTaken(byte[] arg0, Camera arg1)
-        {
-            // Just do nothing.
-        }
-    };
-
-    PictureCallback jpegPictureCallback = new PictureCallback()
-    {
-        public void onPictureTaken(byte[] data, Camera arg1)
-        {
-            // Save the picture.
-            try {
-                Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0,data.length);
-                FileOutputStream out = new FileOutputStream(NowPictureFileName);
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out);
-            }
-            catch (IOException e)
-            {
-                e.printStackTrace();
-            }
-        }
-    };
+  }
 
 }

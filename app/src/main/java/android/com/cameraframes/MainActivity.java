@@ -1,53 +1,118 @@
 package android.com.cameraframes;
 
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity {
+import org.w3c.dom.Text;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+public class MainActivity extends Activity implements SensorEventListener {
 
-        Button btnFrame = (Button) findViewById(R.id.button);
-        btnFrame.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent myIntent = new Intent(MainActivity.this, MyCamera.class);
-                MainActivity.this.startActivity(myIntent);
-            }
-        });
+  private Camera mCamera;
+  private CameraPreview mPreview;
+  private Sensor gyro;
+  private SensorManager mgr;
+  private TextView textView2;
+
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+
+    mgr = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+    gyro = mgr.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+
+    txt = (TextView) findViewById(R.id.textView);
+    textView2= (TextView) findViewById(R.id.textView2);
+
+    mCamera = Camera.open();
+
+
+    // Create our Preview view and set it as the content of our activity.
+    mPreview = new CameraPreview(this, mCamera);
+    FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
+    preview.addView(mPreview);
+  }
+
+  @Override
+  public void onSensorChanged(SensorEvent event) {
+    //if sensor is unreliable, return void
+    if (event.accuracy == SensorManager.SENSOR_STATUS_UNRELIABLE) {
+      return;
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
+    int data = Float.valueOf(event.values[1]).intValue();
+
+    if (data >= 20) {
+      mPreview.setCapture(true);
+    } else {
+      mPreview.setCapture(false);
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+    //else it will output the Roll, Pitch and Yawn values
+    txt.setText("Orientation X (Roll) :" + Float.toString(event.values[2]) + "\n" +
+      "Orientation Y (Pitch) :" + Float.toString(event.values[1]) + "\n" +
+      "Orientation Z (Yaw) :" + Float.toString(event.values[0]));
+  }
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
+  @Override
+  public void onAccuracyChanged(Sensor sensor, int i) {
 
-        return super.onOptionsItemSelected(item);
+  }
+
+  public void showData(final int i ){
+   runOnUiThread(new Runnable() {
+     @Override
+     public void run() {
+       textView2.setText("CANT: " + i);
+     }
+   });
+  }
+
+  private TextView txt = null;
+
+  private int findFrontFacingCamera() {
+    int cameraId = -1;
+    // Search for the front facing camera
+    int numberOfCameras = Camera.getNumberOfCameras();
+    for (int i = 0; i < numberOfCameras; i++) {
+      Camera.CameraInfo info = new Camera.CameraInfo();
+      Camera.getCameraInfo(i, info);
+      if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+        cameraId = i;
+        break;
+      }
     }
+    return cameraId;
+  }
+
+
+  @Override
+  protected void onResume() {
+    mgr.registerListener(this, mgr.getDefaultSensor(Sensor.TYPE_ORIENTATION), SensorManager.SENSOR_DELAY_FASTEST);
+    super.onResume();
+  }
+
+  @Override
+  protected void onPause() {
+    mgr.unregisterListener(this);
+    super.onPause();
+  }
+
 }
-
